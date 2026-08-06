@@ -27,10 +27,11 @@ const diagErr = [];
 addEventListener('error', e => { diagErr.push('ERROR:' + (e.message || e)); console.error('[diag]', e); });
 addEventListener('keydown', e => console.log('[diag] keydown code=' + e.code + ' key=' + JSON.stringify(e.key) + ' comp=' + e.isComposing + ' repeat=' + e.repeat));
 function updateDiag() {
-  const a = state?.applied;
+  const a = state?.applied, r = state?.received;
   diag.textContent = 'v' + DIAG_VER + (diagErr.length ? '\n' + diagErr.join('\n') : '') +
     '\nws=' + socket.readyState + ' you=' + (state ? state.you : '?') +
     ' 输入=(' + input.x + ',' + input.y + ')' + (input.shoot ? ' 射击' : '') +
+    (r ? ' 收到=(' + r.x + ',' + r.y + ')' + (r.shoot ? ' 射击' : '') : '') +
     (a ? ' 应用=(' + a.x + ',' + a.y + ')' + (a.shoot ? ' 射击' : '') : '') +
     '\n玩家=' + (state?.player ? Math.round(state.player.x) + ',' + Math.round(state.player.y) : '无');
 }
