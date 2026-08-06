@@ -26,7 +26,14 @@ document.body.appendChild(diag);
 const diagErr = [];
 addEventListener('error', e => { diagErr.push('ERROR:' + (e.message || e)); console.error('[diag]', e); });
 addEventListener('keydown', e => console.log('[diag] keydown code=' + e.code + ' key=' + JSON.stringify(e.key) + ' comp=' + e.isComposing + ' repeat=' + e.repeat));
-function updateDiag() { diag.textContent = 'v' + DIAG_VER + (diagErr.length ? '\n' + diagErr.join('\n') : '') + '\nws=' + socket.readyState + ' 输入=(' + input.x + ',' + input.y + ')' + (input.shoot ? ' 射击' : '') + (input.sprint ? ' 冲刺' : '') + '\n玩家=' + (state?.player ? Math.round(state.player.x) + ',' + Math.round(state.player.y) : '无'); }
+function updateDiag() {
+  const a = state?.applied;
+  diag.textContent = 'v' + DIAG_VER + (diagErr.length ? '\n' + diagErr.join('\n') : '') +
+    '\nws=' + socket.readyState + ' you=' + (state ? state.you : '?') +
+    ' 输入=(' + input.x + ',' + input.y + ')' + (input.shoot ? ' 射击' : '') +
+    (a ? ' 应用=(' + a.x + ',' + a.y + ')' + (a.shoot ? ' 射击' : '') : '') +
+    '\n玩家=' + (state?.player ? Math.round(state.player.x) + ',' + Math.round(state.player.y) : '无');
+}
 
 const stamina = document.createElement('div');
 stamina.className = 'stamina'; stamina.innerHTML = '<i></i>';
