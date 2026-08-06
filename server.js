@@ -45,9 +45,9 @@ function receive(client, data) {
   }
 }
 function handle(client, message) {
-  if (message.type === 'join') { client.joined = true; game.controller = client; send(client, { type: 'ready' }); return; }
-  if (message.type === 'input') { if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot || !!message.sprint) game.controller = client; const aim = Math.hypot(Number(message.aimX) || 0, Number(message.aimY) || 0); client.input = { x: clamp(message.x, -1, 1), y: clamp(message.y, -1, 1), aimX: aim ? (Number(message.aimX) || 0) / aim : 1, aimY: aim ? (Number(message.aimY) || 0) / aim : 0, shoot: !!message.shoot, sprint: !!message.sprint }; }
-  if (message.type === 'start') startGame();
+  if (message.type === 'join') { client.joined = true; game.controller = client; send(client, { type: 'ready' }); console.log('[net] join clients=' + clients.size + ' 控制器=' + (client === game.controller)); return; }
+  if (message.type === 'input') { if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot || !!message.sprint) game.controller = client; const aim = Math.hypot(Number(message.aimX) || 0, Number(message.aimY) || 0); client.input = { x: clamp(message.x, -1, 1), y: clamp(message.y, -1, 1), aimX: aim ? (Number(message.aimX) || 0) / aim : 1, aimY: aim ? (Number(message.aimY) || 0) / aim : 0, shoot: !!message.shoot, sprint: !!message.sprint }; if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot) console.log('[net] input x=' + message.x + ' y=' + message.y + ' shoot=' + !!message.shoot + ' 控制器=' + (client === game.controller)); }
+  if (message.type === 'start') { console.log('[net] start 收到'); startGame(); }
   if (message.type === 'upgrade' && game.phase === 'upgrade' && game.options.some(x => x.id === message.id)) { applyUpgrade(game.player, message.id); game.phase = 'playing'; game.options = []; effect('升级完成', game.player.x, game.player.y, '#ffe073'); }
 }
 
