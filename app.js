@@ -25,6 +25,13 @@ document.querySelector('#arena-wrap').append(stamina);
 const staminaFill = stamina.firstChild;
 const fireMode = document.createElement('div');
 fireMode.className = 'fire-mode'; document.querySelector('#arena-wrap').append(fireMode);
+const xpBar = document.createElement('div');
+xpBar.className = 'xp'; xpBar.innerHTML = '<i></i>';
+document.querySelector('#arena-wrap').append(xpBar);
+const xpFill = xpBar.firstChild;
+const attrPanel = document.createElement('div');
+attrPanel.className = 'attr'; attrPanel.style.display = 'none';
+document.querySelector('#arena-wrap').append(attrPanel);
 
 const socket = new WebSocket(`ws://${location.host}`);
 socket.onopen = () => socket.send(JSON.stringify({ type: 'join' }));
@@ -131,7 +138,25 @@ function updateRender(dt) {
   });
   botRender.forEach((_, i) => { if (!seen.has(i)) botRender.delete(i); });
 }
+let attrCache = '';
+function updateAttr(p) {
+  xpFill.style.width = `${Math.max(0, Math.min(100, p.xp / (p.xpNeed || 1) * 100))}%`;
+  attrPanel.style.display = p ? '' : 'none';
+  if (!p) return;
+  const c = state.caps || {};
+  const mark = cond => cond ? ' <em>满</em>' : '';
+  const atr =
+    `<div class="attr-row"><span>等级</span><b>Lv.${p.level} · ${p.xp}/${p.xpNeed}</b></div>` +
+    `<div class="attr-row"><span>生命</span><b>${Math.ceil(p.hp)}/${p.maxHp}${mark(p.maxHp >= c.maxHp)}</b></div>` +
+    `<div class="attr-row"><span>伤害</span><b>${p.damage}${mark(p.damage >= c.damage)}</b></div>` +
+    `<div class="attr-row"><span>射速</span><b>${(1 / (p.fireRate || 1)).toFixed(1)}/s${mark(p.fireRate <= (c.fireRate || 0) + .001)}</b></div>` +
+    `<div class="attr-row"><span>弹速</span><b>${p.bulletSpeed}${mark(p.bulletSpeed >= c.bulletSpeed)}</b></div>` +
+    `<div class="attr-row"><span>移速</span><b>${Math.round(p.speed)}${mark(p.speed >= c.speed)}</b></div>` +
+    `<div class="attr-row"><span>拾取</span><b>${p.pickup}${mark(p.pickup >= c.pickup)}</b></div>` +
+    `<div class="attr-row"><span>减伤</span><b>${Math.round((p.resist || 0) * 100)}%${mark(p.resist >= c.resist)}</b></div>`;
+  if (atr !== attrCache) { attrPanel.innerHTML = atr; attrCache = atr; }
+}
 function frame() {
   const now = performance.now(), dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
-  if (state?.player) { const p=state.player, rp=render.player; updateRender(dt); const dx=mouse.x-(rp.x-camera.x),dy=mouse.y-(rp.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d;input.aimY=dy/d; staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`; drawWorld();drawHud();scoreEl.textContent=`能量 ${state.score}`;timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;levelEl.textContent=`第${state.wave}波 · Lv.${p.level}`;if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`; } if(socket.readyState===1)socket.send(JSON.stringify({type:'input',...input})); fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';requestAnimationFrame(frame); }
+  if (state?.player) { const p=state.player, rp=render.player; updateRender(dt); const dx=mouse.x-(rp.x-camera.x),dy=mouse.y-(rp.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d;input.aimY=dy/d; staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`; updateAttr(p); drawWorld();drawHud();scoreEl.textContent=`能量 ${state.score}`;timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;levelEl.textContent=`第${state.wave}波 · Lv.${p.level}`;if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`; } if(socket.readyState===1)socket.send(JSON.stringify({type:'input',...input})); fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
