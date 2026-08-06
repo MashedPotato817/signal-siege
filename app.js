@@ -18,6 +18,15 @@ let lastFrame = performance.now();
 const render = { player: null };
 let pBase = null; // 服务端权威位置的预测基准 {x, y, t}
 const botRender = new Map(); // bot 平滑渲染位置
+// === 临时诊断面板（定位问题用，定位后移除） ===
+const DIAG_VER = '813bbc6';
+const diag = document.createElement('div');
+diag.id = 'diag'; diag.style.cssText = 'position:fixed;top:6px;left:6px;z-index:99;background:rgba(0,0,0,.88);color:#7fff7f;font:11px/1.6 Consolas,monospace;padding:6px 8px;border-radius:4px;pointer-events:none;max-width:70vw;white-space:pre';
+document.body.appendChild(diag);
+const diagErr = [];
+addEventListener('error', e => { diagErr.push('ERROR:' + (e.message || e)); console.error('[diag]', e); });
+addEventListener('keydown', e => console.log('[diag] keydown code=' + e.code + ' key=' + JSON.stringify(e.key) + ' comp=' + e.isComposing + ' repeat=' + e.repeat));
+function updateDiag() { diag.textContent = 'v' + DIAG_VER + (diagErr.length ? '\n' + diagErr.join('\n') : '') + '\nws=' + socket.readyState + ' 输入=(' + input.x + ',' + input.y + ')' + (input.shoot ? ' 射击' : '') + (input.sprint ? ' 冲刺' : '') + '\n玩家=' + (state?.player ? Math.round(state.player.x) + ',' + Math.round(state.player.y) : '无'); }
 
 const stamina = document.createElement('div');
 stamina.className = 'stamina'; stamina.innerHTML = '<i></i>';
@@ -132,5 +141,5 @@ function updateRender(dt) {
 }
 function frame() {
   const now = performance.now(), dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
-  if (state?.player) { const p=state.player, rp=render.player; updateRender(dt); const dx=mouse.x-(rp.x-camera.x),dy=mouse.y-(rp.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d;input.aimY=dy/d; staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`; drawWorld();drawHud();scoreEl.textContent=`能量 ${state.score}`;timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;levelEl.textContent=`第${state.wave}波 · Lv.${p.level}`;if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`; } if(socket.readyState===1)socket.send(JSON.stringify({type:'input',...input})); fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';requestAnimationFrame(frame); }
+  if (state?.player) { const p=state.player, rp=render.player; updateRender(dt); const dx=mouse.x-(rp.x-camera.x),dy=mouse.y-(rp.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d;input.aimY=dy/d; staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`; drawWorld();drawHud();scoreEl.textContent=`能量 ${state.score}`;timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;levelEl.textContent=`第${state.wave}波 · Lv.${p.level}`;if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`; } updateDiag(); if(socket.readyState===1)socket.send(JSON.stringify({type:'input',...input})); fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';requestAnimationFrame(frame); }
 requestAnimationFrame(frame);
