@@ -46,7 +46,8 @@ function syncInput() {
   input.sprint = keys.has('sprint');
   input.shoot = keys.has('shoot') || (autoMode ? autoFire : input.mouseFire);
 }
-function keyName(e) { return (e.isComposing || e.keyCode === 229) ? null : BINDINGS[e.code] || null; }
+const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
+function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
 function clearKeys() { if (keys.size || autoFire || input.mouseFire) { keys.clear(); autoFire = false; input.mouseFire = false; syncInput(); } }
 addEventListener('keydown', e => { const name = keyName(e); if (!name) return; e.preventDefault(); if (!e.repeat || !keys.has(name)) { keys.add(name); syncInput(); } });
 addEventListener('keyup', e => { const name = keyName(e); if (!name) return; keys.delete(name); syncInput(); });
