@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const ROOT = __dirname;
 const WORLD = { width: 2400, height: 1400 };
 const clients = new Set();
-const game = { phase: 'lobby', time: 0, wave: 0, score: 0, player: null, bots: [], cores: [], bullets: [], effects: [], options: [], controller: null, last: Date.now(), lastApplied: { x: 0, y: 0, aimX: 1, aimY: 0, shoot: false, sprint: false }, lastReceived: { x: 0, y: 0, shoot: false } };
+const game = { phase: 'lobby', time: 0, wave: 0, score: 0, player: null, bots: [], cores: [], bullets: [], effects: [], options: [], controller: null, last: Date.now() };
 
 const UPGRADE_POOL = [
   ['rapid', '极速脉冲', '射击间隔 -22%'], ['swift', '相位推进', '移动速度 +18%'],
@@ -37,17 +37,23 @@ server.on('upgrade', (req, socket) => {
 function receive(client, data) {
   client.buffer = Buffer.concat([client.buffer, data]);
   while (client.buffer.length >= 2) {
-    const size = client.buffer[1] & 127, header = size === 126 ? 4 : 2, total = header + 4 + size;
-    if (size === 127 || client.buffer.length < total) return;
+    let size = client.buffer[1] & 127, header = 2;
+    if (size === 126) { // 16 位扩展长度
+      if (client.buffer.length < 4) return;
+      size = client.buffer.readUInt16BE(2);
+      header = 4;
+    } else if (size === 127) return; // 不支持 64 位长度
+    const total = header + 4 + size;
+    if (client.buffer.length < total) return;
     const mask = client.buffer.subarray(header, header + 4); const payload = client.buffer.subarray(header + 4, total); client.buffer = client.buffer.subarray(total);
     for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4];
     try { handle(client, JSON.parse(payload.toString())); } catch { /* ignore malformed frames */ }
   }
 }
 function handle(client, message) {
-  if (message.type === 'join') { client.joined = true; game.controller = client; send(client, { type: 'ready' }); console.log('[net] join clients=' + clients.size + ' 控制器=' + (client === game.controller)); return; }
-  if (message.type === 'input') { if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot || !!message.sprint) game.controller = client; const aim = Math.hypot(Number(message.aimX) || 0, Number(message.aimY) || 0); client.input = { x: clamp(message.x, -1, 1), y: clamp(message.y, -1, 1), aimX: aim ? (Number(message.aimX) || 0) / aim : 1, aimY: aim ? (Number(message.aimY) || 0) / aim : 0, shoot: !!message.shoot, sprint: !!message.sprint }; game.lastReceived = { x: Number(message.x) || 0, y: Number(message.y) || 0, shoot: !!message.shoot }; if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot) console.log('[net] input x=' + message.x + ' y=' + message.y + ' shoot=' + !!message.shoot + ' 控制器=' + (client === game.controller)); }
-  if (message.type === 'start') { console.log('[net] start 收到'); startGame(); }
+  if (message.type === 'join') { client.joined = true; game.controller = client; send(client, { type: 'ready' }); return; }
+  if (message.type === 'input') { if (Number(message.x) !== 0 || Number(message.y) !== 0 || !!message.shoot || !!message.sprint) game.controller = client; const aim = Math.hypot(Number(message.aimX) || 0, Number(message.aimY) || 0); client.input = { x: clamp(message.x, -1, 1), y: clamp(message.y, -1, 1), aimX: aim ? (Number(message.aimX) || 0) / aim : 1, aimY: aim ? (Number(message.aimY) || 0) / aim : 0, shoot: !!message.shoot, sprint: !!message.sprint }; }
+  if (message.type === 'start') startGame();
   if (message.type === 'upgrade' && game.phase === 'upgrade' && game.options.some(x => x.id === message.id)) { applyUpgrade(game.player, message.id); game.phase = 'playing'; game.options = []; effect('升级完成', game.player.x, game.player.y, '#ffe073'); }
 }
 
@@ -86,7 +92,7 @@ function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function tick() {
   const now = Date.now(), dt = Math.min(.05, (now - game.last) / 1000); game.last = now;
   if (game.phase === 'playing') {
-    game.time -= dt; const playerClient = game.controller && clients.has(game.controller) ? game.controller : [...clients].find(c => c.joined); game.lastApplied = playerClient?.input || { x: 0, y: 0, aimX: 1, aimY: 0, shoot: false, sprint:false }; stepActor(game.player, game.lastApplied, dt);
+    game.time -= dt; const playerClient = game.controller && clients.has(game.controller) ? game.controller : [...clients].find(c => c.joined); stepActor(game.player, playerClient?.input || { x: 0, y: 0, aimX: 1, aimY: 0, shoot: false, sprint:false }, dt);
     game.bots.forEach(bot => { stepActor(bot, aiInput(bot, now, dt), dt); if (bot.touchCooldown<=0 && bot.type!=='shooter' && game.player.respawn<=0 && game.player.invuln<=0 && distance(bot,game.player)<(bot.type==='boss'?52:40)) { const hit=bot.type==='boss'?18:bot.type==='brute'?13:7;game.player.hp-=hit;bot.touchCooldown=1;effect(`-${hit}`,game.player.x,game.player.y-25,'#ff8d8d'); } }); if(game.player.hp<=0 && game.player.respawn<=0){game.player.hp=0;game.player.respawn=1.8;effect('击倒',game.player.x,game.player.y,'#ffffff');}
     for (const core of game.cores) if (!core.live) { core.timer -= dt; if (core.timer <= 0) Object.assign(core, spawnCore()); }
     for (const actor of [game.player, ...game.bots]) for (const core of game.cores) if (core.live && actor.respawn <= 0 && distance(actor, core) < actor.pickup) { core.live = false; core.timer = 4; if (actor.kind === 'player') { game.score++; actor.xp++; effect('+1 核心', actor.x, actor.y, '#ffe073'); if (actor.xp >= 3) { actor.xp = 0; actor.level++; game.phase = 'upgrade'; game.options = pickOptions(); } } }
@@ -99,8 +105,8 @@ function tick() {
   game.effects = game.effects.filter(e => (e.life -= dt) > 0); broadcast({ type: 'state', game: view() });
 }
 function viewActor(a) { return { type:a.type, x: a.x, y: a.y, hp: a.hp, maxHp: a.maxHp, stamina: a.stamina, maxStamina: a.maxStamina, pickup:a.pickup, respawn: a.respawn, invuln:a.invuln || 0, aimX: a.aimX, aimY: a.aimY }; }
-function view() { return { phase: game.phase, time: game.time, wave:game.wave, score: game.score, player: game.player && { ...viewActor(game.player), xp: game.player.xp, level: game.player.level, speed: game.player.speed }, bots: game.bots.map(viewActor), cores: game.cores, bullets: game.bullets, effects: game.effects, options: game.options, world: WORLD, applied: game.lastApplied, received: game.lastReceived }; }
+function view() { return { phase: game.phase, time: game.time, wave:game.wave, score: game.score, player: game.player && { ...viewActor(game.player), xp: game.player.xp, level: game.player.level, speed: game.player.speed }, bots: game.bots.map(viewActor), cores: game.cores, bullets: game.bullets, effects: game.effects, options: game.options, world: WORLD }; }
 function send(c, data) { const body = Buffer.from(JSON.stringify(data)); const header = body.length < 126 ? Buffer.from([129, body.length]) : Buffer.from([129, 126, body.length >> 8, body.length & 255]); c.socket.write(Buffer.concat([header, body])); }
-function broadcast(data) { clients.forEach(c => { try { const g = data.game; send(c, { type: 'state', game: { ...g, you: c === game.controller } }); } catch { clients.delete(c); } }); }
+function broadcast(data) { clients.forEach(c => { try { send(c, data); } catch { clients.delete(c); } }); }
 setInterval(tick, 1000 / 60);
 server.listen(3000, '0.0.0.0', () => console.log('Signal Siege: http://localhost:3000'));
