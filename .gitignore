@@ -4,6 +4,11 @@ node_modules/
 # 运行产物 / 日志
 *.log
 
+# 本地测试临时文件
+_smoke*
+_patch.js
+_*_test.js
+
 # 编辑器 / 系统
 .vscode/
 .DS_Store
