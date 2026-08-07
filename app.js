@@ -136,7 +136,7 @@ function drawWorld() {
 }
 function drawHud() {
   const p = state.player, sx = p.x - camera.x, sy = p.y - camera.y, range = 510, ex = sx + p.aimX * range, ey = sy + p.aimY * range;
-  ctx.save(); const gradient = ctx.createLinearGradient(sx, sy, ex, ey); gradient.addColorStop(0, 'rgba(255,232,132,.45)'); gradient.addColorStop(1, 'rgba(255,218,92,0)'); ctx.strokeStyle = gradient; ctx.lineWidth = 2; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -(Date.now() / 28) % 14; ctx.beginPath(); ctx.moveTo(sx + p.aimX * 25, sy + p.aimY * 25); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,228,118,.65)'; ctx.beginPath(); ctx.arc(ex, ey, 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); const gradient = ctx.createLinearGradient(sx, sy, ex, ey); gradient.addColorStop(0, 'rgba(255,232,132,.45)'); gradient.addColorStop(1, 'rgba(255,218,92,0)'); ctx.strokeStyle = gradient; ctx.lineWidth = 2; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -(Date.now() / 28) % 14; ctx.beginPath(); ctx.moveTo(sx + p.aimX * 25, sy + p.aimY * 25); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
   ctx.translate(mouse.x, mouse.y); ctx.strokeStyle = 'rgba(255,245,202,.92)'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.moveTo(-13,0);ctx.lineTo(-4,0);ctx.moveTo(4,0);ctx.lineTo(13,0);ctx.moveTo(0,-13);ctx.lineTo(0,-4);ctx.moveTo(0,4);ctx.lineTo(0,13);ctx.stroke(); ctx.restore();
   if (p.pickup > 36) drawMagnet(p); drawOffscreenEnemies(); drawJoysticks();
 }
