@@ -18,7 +18,7 @@ window.__state = game;       // 调试用
 
 let camera = { x: 0, y: 0 };
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
-let autoMode = false, autoFire = false;
+let autoFire = true, lockTarget = null; // 默认一直自动攻击；lockTarget 为右键锁定的敌人
 const keys = new Set();
 const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', Space:'shoot', ShiftLeft:'sprint', ShiftRight:'sprint' };
 let lastFrame = performance.now();
@@ -46,29 +46,36 @@ attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
 
 startButton.disabled = false; startButton.textContent = '开始新一局';
-startButton.onclick = () => { startGame(); intro.hidden = true; status.textContent = '正在生成新战场…'; };
+startButton.onclick = () => { startGame(); intro.hidden = true; syncInput(); };
+syncInput(); // 开局即自动攻击（autoFire=true）
 
 function syncInput() {
   if (IS_TOUCH) return; // 手机端由摇杆驱动
   input.x = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
   input.y = (keys.has('down') ? 1 : 0) - (keys.has('up') ? 1 : 0);
   input.sprint = keys.has('sprint');
-  input.shoot = keys.has('shoot') || (autoMode ? autoFire : input.mouseFire);
+  input.shoot = keys.has('shoot') || autoFire; // 一直自动攻击；空格仍可临时开火
 }
 const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
 function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
-function clearKeys() { if (keys.size || autoFire || input.mouseFire) { keys.clear(); autoFire = false; input.mouseFire = false; syncInput(); } }
+function clearKeys() { if (keys.size) { keys.clear(); syncInput(); } } // 不清 autoFire / 锁定
 addEventListener('keydown', e => { if (e.key === 'Escape') { togglePause(); return; } const name = keyName(e); if (!name) return; e.preventDefault(); if (!e.repeat || !keys.has(name)) { keys.add(name); syncInput(); } });
 addEventListener('keyup', e => { const name = keyName(e); if (!name) return; keys.delete(name); syncInput(); });
 addEventListener('compositionstart', clearKeys);
 addEventListener('blur', clearKeys);
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
 canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mouse.x = (e.clientX - r.left) * canvas.width / r.width; mouse.y = (e.clientY - r.top) * canvas.height / r.height; });
+function findLockTarget() {
+  const wx = mouse.x + camera.x, wy = mouse.y + camera.y;
+  let best = null, bestD = 60;
+  for (const b of state.bots) if (!b.dead) { const d = Math.hypot(b.x - wx, b.y - wy); if (d < bestD) { bestD = d; best = b; } }
+  return best;
+}
 canvas.addEventListener('mousedown', e => {
-  if (e.button === 0) { if (autoMode) autoFire = !autoFire; else input.mouseFire = true; syncInput(); }
-  if (e.button === 2) { autoMode = !autoMode; autoFire = false; input.mouseFire = false; syncInput(); }
+  if (e.button === 0) { autoFire = !autoFire; syncInput(); } // 左键：待机 ↔ 攻击
+  if (e.button === 2) { lockTarget = findLockTarget(); syncInput(); } // 右键：锁定小兵 / 点空解除
 });
-addEventListener('mouseup', e => { if (e.button === 0 && !autoMode) { input.mouseFire = false; syncInput(); } });
+addEventListener('mouseup', e => { if (e.button === 0) syncInput(); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ==== 手机端：左摇杆移动 / 右摇杆瞄准 / 自动开火 ====
@@ -123,6 +130,7 @@ function drawWorld() {
   drawActor(p, '#f85c6c', '你');
   const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'], fireboss: ['#ff7a4d','喷火首领'], tankboss: ['#c9a0ff','堡垒首领'] };
   state.bots.forEach(b => drawActor(b, ...(styles[b.type] || ['#58a7ff','AI'])));
+  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, 34, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   state.effects.forEach(e => { ctx.globalAlpha = e.life; ctx.fillStyle = e.color; ctx.font = 'bold 15px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 35); ctx.globalAlpha = 1; });
   ctx.restore();
 }
@@ -200,7 +208,16 @@ function frame() {
   const now = performance.now(), dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
   if (state.player) {
     const p = state.player;
-    const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; if(!IS_TOUCH){ input.aimX=dx/d; input.aimY=dy/d; }
+    if(!IS_TOUCH){
+      if (lockTarget && lockTarget.dead) lockTarget = null; // 锁定目标死亡自动解除
+      if (lockTarget && state.bots.includes(lockTarget)) {
+        const dx = lockTarget.x - p.x, dy = lockTarget.y - p.y, d = Math.hypot(dx, dy) || 1;
+        input.aimX = dx / d; input.aimY = dy / d;
+      } else {
+        lockTarget = null;
+        const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d; input.aimY=dy/d;
+      }
+    }
     staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`;
     const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
     hudLevelEl.textContent = `LV ${p.level}`;
@@ -230,7 +247,7 @@ function frame() {
     if (state.phase === 'finished') showOver();
   }
   pauseBtn.style.display = (state.phase === 'playing' && !game.paused) ? '' : 'none';
-  fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';
+  fireMode.textContent=`${autoFire?'自动攻击中':'待机中'}${lockTarget?' · 已锁定目标':''}（左键待机/攻击 · 右键锁定）`;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
