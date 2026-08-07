@@ -2,10 +2,15 @@ const canvas = document.querySelector('#arena');
 const ctx = canvas.getContext('2d');
 const startButton = document.querySelector('#start');
 const intro = document.querySelector('#intro');
-const status = document.querySelector('#status');
-const scoreEl = document.querySelector('#score');
 const timerEl = document.querySelector('#timer');
-const levelEl = document.querySelector('#level');
+const waveEl = document.querySelector('#wave');
+const enemyCountEl = document.querySelector('#enemyCount');
+const hudLevelEl = document.querySelector('#hudLevel');
+const hudHpFill = document.querySelector('.hud-hp i');
+const hudHpNum = document.querySelector('#hudHpNum');
+const hudXpFill = document.querySelector('.hud-xp i');
+const hudXpNum = document.querySelector('#hudXpNum');
+const hudLivesEl = document.querySelector('#hudLives');
 
 const state = game;          // 直接引用本地游戏状态（game.js）
 const input = game.input;    // 输入对象，game.js 的 tick 读取它
@@ -13,7 +18,7 @@ window.__state = game;       // 调试用
 
 let camera = { x: 0, y: 0 };
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
-let autoMode = false, autoFire = false;
+let autoFire = true, lockTarget = null; // 默认一直自动攻击；lockTarget 为右键锁定的敌人
 const keys = new Set();
 const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', Space:'shoot', ShiftLeft:'sprint', ShiftRight:'sprint' };
 let lastFrame = performance.now();
@@ -26,10 +31,6 @@ document.querySelector('#arena-wrap').append(stamina);
 const staminaFill = stamina.firstChild;
 const fireMode = document.createElement('div');
 fireMode.className = 'fire-mode'; document.querySelector('#arena-wrap').append(fireMode);
-const xpBar = document.createElement('div');
-xpBar.className = 'xp'; xpBar.innerHTML = '<i></i>';
-document.querySelector('#arena-wrap').append(xpBar);
-const xpFill = xpBar.firstChild;
 const buffBar = document.createElement('div');
 buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBar);
 const BOSS_NAMES = { boss: '首领', fireboss: '喷火首领', tankboss: '堡垒首领' };
@@ -45,29 +46,36 @@ attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
 
 startButton.disabled = false; startButton.textContent = '开始新一局';
-startButton.onclick = () => { startGame(); intro.hidden = true; status.textContent = '正在生成新战场…'; };
+startButton.onclick = () => { startGame(); intro.hidden = true; syncInput(); };
+syncInput(); // 开局即自动攻击（autoFire=true）
 
 function syncInput() {
   if (IS_TOUCH) return; // 手机端由摇杆驱动
   input.x = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
   input.y = (keys.has('down') ? 1 : 0) - (keys.has('up') ? 1 : 0);
   input.sprint = keys.has('sprint');
-  input.shoot = keys.has('shoot') || (autoMode ? autoFire : input.mouseFire);
+  input.shoot = keys.has('shoot') || autoFire; // 一直自动攻击；空格仍可临时开火
 }
 const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
 function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
-function clearKeys() { if (keys.size || autoFire || input.mouseFire) { keys.clear(); autoFire = false; input.mouseFire = false; syncInput(); } }
+function clearKeys() { if (keys.size) { keys.clear(); syncInput(); } } // 不清 autoFire / 锁定
 addEventListener('keydown', e => { if (e.key === 'Escape') { togglePause(); return; } const name = keyName(e); if (!name) return; e.preventDefault(); if (!e.repeat || !keys.has(name)) { keys.add(name); syncInput(); } });
 addEventListener('keyup', e => { const name = keyName(e); if (!name) return; keys.delete(name); syncInput(); });
 addEventListener('compositionstart', clearKeys);
 addEventListener('blur', clearKeys);
 document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeys(); });
 canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mouse.x = (e.clientX - r.left) * canvas.width / r.width; mouse.y = (e.clientY - r.top) * canvas.height / r.height; });
+function findLockTarget() {
+  const wx = mouse.x + camera.x, wy = mouse.y + camera.y;
+  let best = null, bestD = 60;
+  for (const b of state.bots) if (!b.dead) { const d = Math.hypot(b.x - wx, b.y - wy); if (d < bestD) { bestD = d; best = b; } }
+  return best;
+}
 canvas.addEventListener('mousedown', e => {
-  if (e.button === 0) { if (autoMode) autoFire = !autoFire; else input.mouseFire = true; syncInput(); }
-  if (e.button === 2) { autoMode = !autoMode; autoFire = false; input.mouseFire = false; syncInput(); }
+  if (e.button === 0) { autoFire = !autoFire; syncInput(); } // 左键：待机 ↔ 攻击
+  if (e.button === 2) { lockTarget = findLockTarget(); syncInput(); } // 右键：锁定小兵 / 点空解除
 });
-addEventListener('mouseup', e => { if (e.button === 0 && !autoMode) { input.mouseFire = false; syncInput(); } });
+addEventListener('mouseup', e => { if (e.button === 0) syncInput(); });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 // ==== 手机端：左摇杆移动 / 右摇杆瞄准 / 自动开火 ====
@@ -122,17 +130,18 @@ function drawWorld() {
   drawActor(p, '#f85c6c', '你');
   const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'], fireboss: ['#ff7a4d','喷火首领'], tankboss: ['#c9a0ff','堡垒首领'] };
   state.bots.forEach(b => drawActor(b, ...(styles[b.type] || ['#58a7ff','AI'])));
+  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, 34, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   state.effects.forEach(e => { ctx.globalAlpha = e.life; ctx.fillStyle = e.color; ctx.font = 'bold 15px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 35); ctx.globalAlpha = 1; });
   ctx.restore();
 }
 function drawHud() {
   const p = state.player, sx = p.x - camera.x, sy = p.y - camera.y, range = 510, ex = sx + p.aimX * range, ey = sy + p.aimY * range;
-  ctx.save(); const gradient = ctx.createLinearGradient(sx, sy, ex, ey); gradient.addColorStop(0, 'rgba(255,232,132,.45)'); gradient.addColorStop(1, 'rgba(255,218,92,0)'); ctx.strokeStyle = gradient; ctx.lineWidth = 2; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -(Date.now() / 28) % 14; ctx.beginPath(); ctx.moveTo(sx + p.aimX * 25, sy + p.aimY * 25); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = 'rgba(255,228,118,.65)'; ctx.beginPath(); ctx.arc(ex, ey, 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); const gradient = ctx.createLinearGradient(sx, sy, ex, ey); gradient.addColorStop(0, 'rgba(255,232,132,.45)'); gradient.addColorStop(1, 'rgba(255,218,92,0)'); ctx.strokeStyle = gradient; ctx.lineWidth = 2; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -(Date.now() / 28) % 14; ctx.beginPath(); ctx.moveTo(sx + p.aimX * 25, sy + p.aimY * 25); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
   ctx.translate(mouse.x, mouse.y); ctx.strokeStyle = 'rgba(255,245,202,.92)'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.moveTo(-13,0);ctx.lineTo(-4,0);ctx.moveTo(4,0);ctx.lineTo(13,0);ctx.moveTo(0,-13);ctx.lineTo(0,-4);ctx.moveTo(0,4);ctx.lineTo(0,13);ctx.stroke(); ctx.restore();
   if (p.pickup > 36) drawMagnet(p); drawOffscreenEnemies(); drawJoysticks();
 }
 function drawMagnet(p) { const x = p.x - camera.x, y = p.y - camera.y, r = p.pickup * (1 + Math.sin(Date.now() / 260) * .05); ctx.save(); ctx.strokeStyle = 'rgba(105,231,255,.72)'; ctx.setLineDash([5,7]); ctx.lineDashOffset = -Date.now()/42; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke(); ctx.restore(); }
-function drawOffscreenEnemies() { const pad=42,cx=canvas.width/2,cy=canvas.height/2; state.bots.forEach(bot => { const x=bot.x-camera.x,y=bot.y-camera.y; if(x>pad&&x<canvas.width-pad&&y>pad&&y<canvas.height-pad)return; const dx=x-cx,dy=y-cy,angle=Math.atan2(dy,dx),scale=Math.min((canvas.width/2-pad)/Math.max(1,Math.abs(dx)),(canvas.height/2-pad)/Math.max(1,Math.abs(dy))),ax=cx+dx*scale,ay=cy+dy*scale; ctx.save();ctx.translate(ax,ay);ctx.rotate(angle);ctx.fillStyle=bot.boss?'#ffd464':'#72b8ff';ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-9,-8);ctx.lineTo(-5,0);ctx.lineTo(-9,8);ctx.closePath();ctx.fill();ctx.restore(); }); }
+function drawOffscreenEnemies() { const pad=42,cx=canvas.width/2,cy=canvas.height/2; state.bots.forEach(bot => { const x=bot.x-camera.x,y=bot.y-camera.y; if(x>pad&&x<canvas.width-pad&&y>pad&&y<canvas.height-pad)return; const dx=x-cx,dy=y-cy,angle=Math.atan2(dy,dx),scale=Math.min((canvas.width/2-pad)/Math.max(1,Math.abs(dx)),(canvas.height/2-pad)/Math.max(1,Math.abs(dy))),ax=cx+dx*scale,ay=cy+dy*scale; ctx.save();ctx.translate(ax,ay);ctx.rotate(angle);ctx.fillStyle=bot.boss?'#ffd464':'#72b8ff';ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-9,-8);ctx.lineTo(-5,0);ctx.lineTo(-9,8);ctx.closePath();ctx.fill();ctx.restore(); const dist=Math.round(Math.hypot(bot.x-state.player.x,bot.y-state.player.y)/10); ctx.fillStyle=bot.boss?'#ffd464':'#9cd6ff'; ctx.font='11px Microsoft YaHei'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(`${dist}m`, ax, ay - 16); }); }
 function showUpgrade() {
   if (document.querySelector('#upgrade')) return;
   const panel=document.createElement('div');panel.id='upgrade';
@@ -146,9 +155,7 @@ let attrCache = '';
 function buildAttr(p) {
   const c = CAPS;
   const mark = cond => cond ? ' <em>满</em>' : '';
-  return `<div class="attr-row"><span>等级</span><b>Lv.${p.level} · ${p.xp}/${xpToNext(p.level)}</b></div>` +
-    `<div class="attr-row"><span>生命</span><b>${Math.ceil(p.hp)}/${p.maxHp}${mark(p.maxHp >= c.maxHp)}</b></div>` +
-    `<div class="attr-row"><span>命</span><b>${game.lives}${mark(game.lives >= c.lives)}</b></div>` +
+  return `<div class="attr-row"><span>能量</span><b>${game.score}</b></div>` +
     `<div class="attr-row"><span>伤害</span><b>${p.damage}${mark(p.damage >= c.damage)}</b></div>` +
     `<div class="attr-row"><span>射速</span><b>${(1 / (p.fireRate || 1)).toFixed(1)}/s${mark(p.fireRate <= c.fireRate + .001)}</b></div>` +
     `<div class="attr-row"><span>弹速</span><b>${p.bulletSpeed}${mark(p.bulletSpeed >= c.bulletSpeed)}</b></div>` +
@@ -157,7 +164,7 @@ function buildAttr(p) {
     `<div class="attr-row"><span>减伤</span><b>${Math.round((p.resist || 0) * 100)}%${mark(p.resist >= c.resist)}</b></div>`;
 }
 function updateAttr(p) {
-  xpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
+  hudXpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
   attrPanel.style.display = p ? '' : 'none';
   if (!p) return;
   const atr = buildAttr(p);
@@ -201,9 +208,23 @@ function frame() {
   const now = performance.now(), dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
   if (state.player) {
     const p = state.player;
-    const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; if(!IS_TOUCH){ input.aimX=dx/d; input.aimY=dy/d; }
+    if(!IS_TOUCH){
+      if (lockTarget && lockTarget.dead) lockTarget = null; // 锁定目标死亡自动解除
+      if (lockTarget && state.bots.includes(lockTarget)) {
+        const dx = lockTarget.x - p.x, dy = lockTarget.y - p.y, d = Math.hypot(dx, dy) || 1;
+        input.aimX = dx / d; input.aimY = dy / d;
+      } else {
+        lockTarget = null;
+        const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; input.aimX=dx/d; input.aimY=dy/d;
+      }
+    }
     staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`;
     const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
+    hudLevelEl.textContent = `LV ${p.level}`;
+    hudHpFill.style.width = `${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%`;
+    hudHpNum.textContent = `${Math.ceil(Math.max(0, p.hp))}/${p.maxHp}`;
+    hudXpNum.textContent = `${p.xp}/${xpToNext(p.level)}`;
+    hudLivesEl.textContent = '♥'.repeat(Math.max(0, game.lives));
     updateAttr(p); drawWorld(); drawHud();
     const boss = state.bots.find(b => b.boss) || null;
     if (boss) {
@@ -216,10 +237,9 @@ function frame() {
       bossBar.hidden = true;
       timerEl.style.display = '';
     }
-    scoreEl.textContent=`能量 ${state.score}`;
     timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;
-    levelEl.textContent=`第${state.wave}波 · Lv.${p.level} · 命×${game.lives}`;
-    if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`;
+    waveEl.textContent=`第 ${state.wave} 波`;
+    enemyCountEl.textContent=`敌人 ${state.bots.length}`;
   }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
@@ -227,7 +247,7 @@ function frame() {
     if (state.phase === 'finished') showOver();
   }
   pauseBtn.style.display = (state.phase === 'playing' && !game.paused) ? '' : 'none';
-  fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';
+  fireMode.textContent=`${autoFire?'自动攻击中':'待机中'}${lockTarget?' · 已锁定目标':''}（左键待机/攻击 · 右键锁定）`;
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
