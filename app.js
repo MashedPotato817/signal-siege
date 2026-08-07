@@ -47,7 +47,7 @@ function syncInput() {
 const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
 function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
 function clearKeys() { if (keys.size || autoFire || input.mouseFire) { keys.clear(); autoFire = false; input.mouseFire = false; syncInput(); } }
-addEventListener('keydown', e => { const name = keyName(e); if (!name) return; e.preventDefault(); if (!e.repeat || !keys.has(name)) { keys.add(name); syncInput(); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') { togglePause(); return; } const name = keyName(e); if (!name) return; e.preventDefault(); if (!e.repeat || !keys.has(name)) { keys.add(name); syncInput(); } });
 addEventListener('keyup', e => { const name = keyName(e); if (!name) return; keys.delete(name); syncInput(); });
 addEventListener('compositionstart', clearKeys);
 addEventListener('blur', clearKeys);
@@ -132,14 +132,10 @@ function showUpgrade() {
   panel.append(row);document.body.append(panel);
 }
 let attrCache = '';
-function updateAttr(p) {
-  xpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
-  attrPanel.style.display = p ? '' : 'none';
-  if (!p) return;
+function buildAttr(p) {
   const c = CAPS;
   const mark = cond => cond ? ' <em>满</em>' : '';
-  const atr =
-    `<div class="attr-row"><span>等级</span><b>Lv.${p.level} · ${p.xp}/${xpToNext(p.level)}</b></div>` +
+  return `<div class="attr-row"><span>等级</span><b>Lv.${p.level} · ${p.xp}/${xpToNext(p.level)}</b></div>` +
     `<div class="attr-row"><span>生命</span><b>${Math.ceil(p.hp)}/${p.maxHp}${mark(p.maxHp >= c.maxHp)}</b></div>` +
     `<div class="attr-row"><span>命</span><b>${game.lives}${mark(game.lives >= c.lives)}</b></div>` +
     `<div class="attr-row"><span>伤害</span><b>${p.damage}${mark(p.damage >= c.damage)}</b></div>` +
@@ -148,8 +144,47 @@ function updateAttr(p) {
     `<div class="attr-row"><span>移速</span><b>${Math.round(p.speed)}${mark(p.speed >= c.speed)}</b></div>` +
     `<div class="attr-row"><span>拾取</span><b>${p.pickup}${mark(p.pickup >= c.pickup)}</b></div>` +
     `<div class="attr-row"><span>减伤</span><b>${Math.round((p.resist || 0) * 100)}%${mark(p.resist >= c.resist)}</b></div>`;
+}
+function updateAttr(p) {
+  xpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
+  attrPanel.style.display = p ? '' : 'none';
+  if (!p) return;
+  const atr = buildAttr(p);
   if (atr !== attrCache) { attrPanel.innerHTML = atr; attrCache = atr; }
 }
+// ==== 暂停 / 游戏结束 页面 ====
+const pauseBtn = document.createElement('div');
+pauseBtn.className = 'pause-btn'; pauseBtn.textContent = '⏸';
+pauseBtn.addEventListener('click', togglePause);
+document.querySelector('#arena-wrap').append(pauseBtn);
+const pausePanel = document.createElement('div');
+pausePanel.id = 'pausePanel'; pausePanel.className = 'panel-overlay'; pausePanel.hidden = true;
+pausePanel.innerHTML = `<h2>已暂停</h2><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
+document.body.appendChild(pausePanel);
+const overPanel = document.createElement('div');
+overPanel.id = 'overPanel'; overPanel.className = 'panel-overlay'; overPanel.hidden = true;
+overPanel.innerHTML = `<h2>游戏结束</h2><p class="over-stats"></p><div class="panel-btns"><button id="btnAgain">重新开始</button></div>`;
+document.body.appendChild(overPanel);
+function togglePause() {
+  if (state.phase !== 'playing') return;
+  game.paused = !game.paused;
+  if (game.paused) showPause(); else hidePause();
+}
+function showPause() {
+  const box = pausePanel.querySelector('.attr-box');
+  box.style.display = IS_TOUCH ? '' : 'none';
+  if (IS_TOUCH) box.innerHTML = buildAttr(state.player);
+  pausePanel.hidden = false;
+}
+function hidePause() { pausePanel.hidden = true; }
+function showOver() {
+  overPanel.querySelector('.over-stats').textContent = `存活 ${Math.floor(state.time)} 秒 · 第 ${state.wave} 波 · 获得 ${state.score} 能量`;
+  overPanel.hidden = false;
+}
+function hideOver() { overPanel.hidden = true; }
+pausePanel.querySelector('#btnResume').onclick = () => togglePause();
+pausePanel.querySelector('#btnRestart').onclick = () => { startGame(); hidePause(); };
+overPanel.querySelector('#btnAgain').onclick = () => { startGame(); hideOver(); };
 let lastPhase = '';
 function frame() {
   const now = performance.now(), dt = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
@@ -166,8 +201,9 @@ function frame() {
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
     if (state.phase === 'upgrade') showUpgrade();
-    if (state.phase === 'finished') { intro.hidden = false; intro.querySelector('h2').textContent = '本局结束'; intro.querySelector('p').textContent = `存活 ${Math.floor(state.time)} 秒 · 第 ${state.wave} 波 · 获得 ${state.score} 能量`; startButton.textContent = '再来一局'; }
+    if (state.phase === 'finished') showOver();
   }
+  pauseBtn.style.display = (state.phase === 'playing' && !game.paused) ? '' : 'none';
   fireMode.textContent=autoMode?`自动发射 · ${autoFire?'开火中':'待机'}（右键切换）`:'手动发射（右键切换）';
   requestAnimationFrame(frame);
 }
