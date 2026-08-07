@@ -3,9 +3,12 @@ const ctx = canvas.getContext('2d');
 const startButton = document.querySelector('#start');
 const intro = document.querySelector('#intro');
 const status = document.querySelector('#status');
-const scoreEl = document.querySelector('#score');
 const timerEl = document.querySelector('#timer');
-const levelEl = document.querySelector('#level');
+const waveEl = document.querySelector('#wave');
+const hudLevelEl = document.querySelector('#hudLevel');
+const hudHpFill = document.querySelector('.hud-hp i');
+const hudXpFill = document.querySelector('.hud-xp i');
+const hudLivesEl = document.querySelector('#hudLives');
 
 const state = game;          // 直接引用本地游戏状态（game.js）
 const input = game.input;    // 输入对象，game.js 的 tick 读取它
@@ -26,10 +29,6 @@ document.querySelector('#arena-wrap').append(stamina);
 const staminaFill = stamina.firstChild;
 const fireMode = document.createElement('div');
 fireMode.className = 'fire-mode'; document.querySelector('#arena-wrap').append(fireMode);
-const xpBar = document.createElement('div');
-xpBar.className = 'xp'; xpBar.innerHTML = '<i></i>';
-document.querySelector('#arena-wrap').append(xpBar);
-const xpFill = xpBar.firstChild;
 const buffBar = document.createElement('div');
 buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBar);
 const BOSS_NAMES = { boss: '首领', fireboss: '喷火首领', tankboss: '堡垒首领' };
@@ -146,9 +145,7 @@ let attrCache = '';
 function buildAttr(p) {
   const c = CAPS;
   const mark = cond => cond ? ' <em>满</em>' : '';
-  return `<div class="attr-row"><span>等级</span><b>Lv.${p.level} · ${p.xp}/${xpToNext(p.level)}</b></div>` +
-    `<div class="attr-row"><span>生命</span><b>${Math.ceil(p.hp)}/${p.maxHp}${mark(p.maxHp >= c.maxHp)}</b></div>` +
-    `<div class="attr-row"><span>命</span><b>${game.lives}${mark(game.lives >= c.lives)}</b></div>` +
+  return `<div class="attr-row"><span>能量</span><b>${game.score}</b></div>` +
     `<div class="attr-row"><span>伤害</span><b>${p.damage}${mark(p.damage >= c.damage)}</b></div>` +
     `<div class="attr-row"><span>射速</span><b>${(1 / (p.fireRate || 1)).toFixed(1)}/s${mark(p.fireRate <= c.fireRate + .001)}</b></div>` +
     `<div class="attr-row"><span>弹速</span><b>${p.bulletSpeed}${mark(p.bulletSpeed >= c.bulletSpeed)}</b></div>` +
@@ -157,7 +154,7 @@ function buildAttr(p) {
     `<div class="attr-row"><span>减伤</span><b>${Math.round((p.resist || 0) * 100)}%${mark(p.resist >= c.resist)}</b></div>`;
 }
 function updateAttr(p) {
-  xpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
+  hudXpFill.style.width = `${Math.max(0, Math.min(100, p.xp / xpToNext(p.level) * 100))}%`;
   attrPanel.style.display = p ? '' : 'none';
   if (!p) return;
   const atr = buildAttr(p);
@@ -204,6 +201,9 @@ function frame() {
     const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; if(!IS_TOUCH){ input.aimX=dx/d; input.aimY=dy/d; }
     staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`;
     const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
+    hudLevelEl.textContent = `LV ${p.level}`;
+    hudHpFill.style.width = `${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%`;
+    hudLivesEl.textContent = '♥'.repeat(Math.max(0, game.lives));
     updateAttr(p); drawWorld(); drawHud();
     const boss = state.bots.find(b => b.boss) || null;
     if (boss) {
@@ -216,9 +216,8 @@ function frame() {
       bossBar.hidden = true;
       timerEl.style.display = '';
     }
-    scoreEl.textContent=`能量 ${state.score}`;
     timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;
-    levelEl.textContent=`第${state.wave}波 · Lv.${p.level} · 命×${game.lives}`;
+    waveEl.textContent=`第 ${state.wave} 波`;
     if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`;
   }
   if (state.phase !== lastPhase) {
