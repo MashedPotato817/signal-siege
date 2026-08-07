@@ -36,11 +36,12 @@ buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBa
 const BOSS_NAMES = { boss: '首领', fireboss: '喷火首领', tankboss: '堡垒首领' };
 const bossBar = document.createElement('div');
 bossBar.className = 'boss-bar'; bossBar.hidden = true;
-bossBar.innerHTML = '<span class="boss-name"></span><div class="boss-track"><i></i></div><span class="boss-hp"></span>';
+bossBar.innerHTML = '<span class="boss-name"></span><div class="boss-track"><i></i></div><span class="boss-hp"></span><span class="boss-respawn"></span>';
 document.querySelector('#arena-wrap').append(bossBar);
 const bossNameEl = bossBar.querySelector('.boss-name');
 const bossFillEl = bossBar.querySelector('.boss-track i');
 const bossHpEl = bossBar.querySelector('.boss-hp');
+const bossRespawnEl = bossBar.querySelector('.boss-respawn');
 const attrPanel = document.createElement('div');
 attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
@@ -238,6 +239,7 @@ function frame() {
       bossNameEl.textContent = BOSS_NAMES[boss.type] || '首领';
       bossFillEl.style.width = `${Math.max(0, boss.hp) / boss.maxHp * 100}%`;
       bossHpEl.textContent = `${Math.ceil(Math.max(0, boss.hp))}/${boss.maxHp}`;
+      bossRespawnEl.textContent = `增援 ${Math.ceil(Math.max(0, game.bossSpawnTimer))}s`;
       bossBar.hidden = false;
       timerEl.style.display = 'none';
     } else {
