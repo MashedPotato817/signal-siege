@@ -62,7 +62,7 @@ function applyItem(p, it) {
   if (it.type === 'overclock') { p.buffs.overclock = 8; effect('攻速 +60%', p.x, p.y, it.color); }
   if (it.type === 'snipe') { p.buffs.snipe = 8; effect('射程 +80%', p.x, p.y, it.color); }
 }
-function xpToNext(level) { return 3 + Math.floor((level - 1) * 1.5); }
+function xpToNext(level) { return (3 + Math.floor((level - 1) * 1.5)) * 5; }
 function addXp(n) {
   const p = game.player;
   p.xp += n;
