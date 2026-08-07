@@ -175,9 +175,16 @@ const pauseBtn = document.createElement('div');
 pauseBtn.className = 'pause-btn'; pauseBtn.textContent = '⏸';
 pauseBtn.addEventListener('click', togglePause);
 document.querySelector('#arena-wrap').append(pauseBtn);
+const KEYS_HELP = IS_TOUCH ? [
+  ['左摇杆', '移动'], ['右摇杆', '瞄准（自动开火）'], ['⏸ 按钮', '暂停'],
+] : [
+  ['WASD', '移动'], ['Shift', '冲刺'], ['鼠标', '瞄准'],
+  ['左键', '待机 / 攻击切换'], ['右键', '锁定目标自动瞄准'], ['空格', '临时开火'],
+  ['ESC', '暂停'],
+];
 const pausePanel = document.createElement('div');
 pausePanel.id = 'pausePanel'; pausePanel.className = 'panel-overlay'; pausePanel.hidden = true;
-pausePanel.innerHTML = `<h2>已暂停</h2><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
+pausePanel.innerHTML = `<h2>已暂停</h2><div class="keys-box"></div><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
 document.body.appendChild(pausePanel);
 const overPanel = document.createElement('div');
 overPanel.id = 'overPanel'; overPanel.className = 'panel-overlay'; overPanel.hidden = true;
@@ -189,6 +196,7 @@ function togglePause() {
   if (game.paused) showPause(); else hidePause();
 }
 function showPause() {
+  pausePanel.querySelector('.keys-box').innerHTML = KEYS_HELP.map(([k, v]) => `<div class="key-row"><b>${k}</b><span>${v}</span></div>`).join('');
   const box = pausePanel.querySelector('.attr-box');
   box.style.display = IS_TOUCH ? '' : 'none';
   if (IS_TOUCH) box.innerHTML = buildAttr(state.player);
