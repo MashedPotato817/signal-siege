@@ -2,12 +2,14 @@ const canvas = document.querySelector('#arena');
 const ctx = canvas.getContext('2d');
 const startButton = document.querySelector('#start');
 const intro = document.querySelector('#intro');
-const status = document.querySelector('#status');
 const timerEl = document.querySelector('#timer');
 const waveEl = document.querySelector('#wave');
+const enemyCountEl = document.querySelector('#enemyCount');
 const hudLevelEl = document.querySelector('#hudLevel');
 const hudHpFill = document.querySelector('.hud-hp i');
+const hudHpNum = document.querySelector('#hudHpNum');
 const hudXpFill = document.querySelector('.hud-xp i');
+const hudXpNum = document.querySelector('#hudXpNum');
 const hudLivesEl = document.querySelector('#hudLives');
 
 const state = game;          // 直接引用本地游戏状态（game.js）
@@ -203,6 +205,8 @@ function frame() {
     const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
     hudLevelEl.textContent = `LV ${p.level}`;
     hudHpFill.style.width = `${Math.max(0, Math.min(100, p.hp / p.maxHp * 100))}%`;
+    hudHpNum.textContent = `${Math.ceil(Math.max(0, p.hp))}/${p.maxHp}`;
+    hudXpNum.textContent = `${p.xp}/${xpToNext(p.level)}`;
     hudLivesEl.textContent = '♥'.repeat(Math.max(0, game.lives));
     updateAttr(p); drawWorld(); drawHud();
     const boss = state.bots.find(b => b.boss) || null;
@@ -218,7 +222,7 @@ function frame() {
     }
     timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;
     waveEl.textContent=`第 ${state.wave} 波`;
-    if(state.phase==='playing')status.textContent=`第 ${state.wave} 波 · 敌人 ${state.bots.length}`;
+    enemyCountEl.textContent=`敌人 ${state.bots.length}`;
   }
   if (state.phase !== lastPhase) {
     lastPhase = state.phase;
