@@ -20,7 +20,7 @@ let camera = { x: 0, y: 0 };
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 let autoFire = true, lockTarget = null; // 默认一直自动攻击；lockTarget 为右键锁定的敌人
 const keys = new Set();
-const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', Space:'shoot', ShiftLeft:'sprint', ShiftRight:'sprint' };
+const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', ShiftLeft:'sprint', ShiftRight:'sprint' };
 let lastFrame = performance.now();
 const IS_TOUCH = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 let joy = null, aimJoy = null; // 手机端：左摇杆移动 / 右摇杆瞄准
@@ -54,7 +54,7 @@ function syncInput() {
   input.x = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
   input.y = (keys.has('down') ? 1 : 0) - (keys.has('up') ? 1 : 0);
   input.sprint = keys.has('sprint');
-  input.shoot = keys.has('shoot') || autoFire; // 一直自动攻击；空格仍可临时开火
+  input.shoot = autoFire; // 一直自动攻击；待机时停火
 }
 const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
 function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
@@ -176,15 +176,14 @@ pauseBtn.className = 'pause-btn'; pauseBtn.textContent = '⏸';
 pauseBtn.addEventListener('click', togglePause);
 document.querySelector('#arena-wrap').append(pauseBtn);
 const KEYS_HELP = IS_TOUCH ? [
-  ['左摇杆', '移动'], ['右摇杆', '瞄准（自动开火）'], ['⏸ 按钮', '暂停'],
+  ['左摇杆', '移动'], ['右摇杆', '自动开火'], ['⏸', '暂停'],
 ] : [
-  ['WASD', '移动'], ['Shift', '冲刺'], ['鼠标', '瞄准'],
-  ['左键', '待机 / 攻击切换'], ['右键', '锁定目标自动瞄准'], ['空格', '临时开火'],
-  ['ESC', '暂停'],
+  ['WASD', '移动'], ['Shift', '冲刺'],
+  ['左键', '待机 / 攻击'], ['右键', '锁定目标'], ['ESC', '暂停'],
 ];
 const pausePanel = document.createElement('div');
 pausePanel.id = 'pausePanel'; pausePanel.className = 'panel-overlay'; pausePanel.hidden = true;
-pausePanel.innerHTML = `<h2>已暂停</h2><div class="keys-box"></div><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
+pausePanel.innerHTML = `<h2>已暂停</h2><p class="pause-hint">一直自动攻击 · 击败敌人拾取核心升级，三选一强化</p><div class="keys-box"></div><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
 document.body.appendChild(pausePanel);
 const overPanel = document.createElement('div');
 overPanel.id = 'overPanel'; overPanel.className = 'panel-overlay'; overPanel.hidden = true;
