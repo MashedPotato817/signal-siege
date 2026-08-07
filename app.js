@@ -32,6 +32,14 @@ document.querySelector('#arena-wrap').append(xpBar);
 const xpFill = xpBar.firstChild;
 const buffBar = document.createElement('div');
 buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBar);
+const BOSS_NAMES = { boss: '首领', fireboss: '喷火首领', tankboss: '堡垒首领' };
+const bossBar = document.createElement('div');
+bossBar.className = 'boss-bar'; bossBar.hidden = true;
+bossBar.innerHTML = '<span class="boss-name"></span><div class="boss-track"><i></i></div><span class="boss-hp"></span>';
+document.querySelector('#arena-wrap').append(bossBar);
+const bossNameEl = bossBar.querySelector('.boss-name');
+const bossFillEl = bossBar.querySelector('.boss-track i');
+const bossHpEl = bossBar.querySelector('.boss-hp');
 const attrPanel = document.createElement('div');
 attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
@@ -197,6 +205,17 @@ function frame() {
     staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`;
     const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
     updateAttr(p); drawWorld(); drawHud();
+    const boss = state.bots.find(b => b.boss) || null;
+    if (boss) {
+      bossNameEl.textContent = BOSS_NAMES[boss.type] || '首领';
+      bossFillEl.style.width = `${Math.max(0, boss.hp) / boss.maxHp * 100}%`;
+      bossHpEl.textContent = `${Math.ceil(Math.max(0, boss.hp))}/${boss.maxHp}`;
+      bossBar.hidden = false;
+      timerEl.style.display = 'none';
+    } else {
+      bossBar.hidden = true;
+      timerEl.style.display = '';
+    }
     scoreEl.textContent=`能量 ${state.score}`;
     timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;
     levelEl.textContent=`第${state.wave}波 · Lv.${p.level} · 命×${game.lives}`;
