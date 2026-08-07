@@ -20,7 +20,7 @@ let camera = { x: 0, y: 0 };
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 let autoFire = true, lockTarget = null; // 默认一直自动攻击；lockTarget 为右键锁定的敌人
 const keys = new Set();
-const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', Space:'shoot', ShiftLeft:'sprint', ShiftRight:'sprint' };
+const BINDINGS = { KeyW:'up', KeyA:'left', KeyS:'down', KeyD:'right', ShiftLeft:'sprint', ShiftRight:'sprint' };
 let lastFrame = performance.now();
 const IS_TOUCH = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 let joy = null, aimJoy = null; // 手机端：左摇杆移动 / 右摇杆瞄准
@@ -36,11 +36,12 @@ buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBa
 const BOSS_NAMES = { boss: '首领', fireboss: '喷火首领', tankboss: '堡垒首领' };
 const bossBar = document.createElement('div');
 bossBar.className = 'boss-bar'; bossBar.hidden = true;
-bossBar.innerHTML = '<span class="boss-name"></span><div class="boss-track"><i></i></div><span class="boss-hp"></span>';
+bossBar.innerHTML = '<span class="boss-name"></span><div class="boss-track"><i></i></div><span class="boss-hp"></span><span class="boss-respawn"></span>';
 document.querySelector('#arena-wrap').append(bossBar);
 const bossNameEl = bossBar.querySelector('.boss-name');
 const bossFillEl = bossBar.querySelector('.boss-track i');
 const bossHpEl = bossBar.querySelector('.boss-hp');
+const bossRespawnEl = bossBar.querySelector('.boss-respawn');
 const attrPanel = document.createElement('div');
 attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
@@ -54,7 +55,7 @@ function syncInput() {
   input.x = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0);
   input.y = (keys.has('down') ? 1 : 0) - (keys.has('up') ? 1 : 0);
   input.sprint = keys.has('sprint');
-  input.shoot = keys.has('shoot') || autoFire; // 一直自动攻击；空格仍可临时开火
+  input.shoot = autoFire; // 一直自动攻击；待机时停火
 }
 const KEY_FALLBACK = { w:'up', a:'left', s:'down', d:'right', ' ':'shoot', shift:'sprint' };
 function keyName(e) { return e.isComposing ? null : BINDINGS[e.code] || KEY_FALLBACK[String(e.key).toLowerCase()] || null; }
@@ -130,7 +131,7 @@ function drawWorld() {
   drawActor(p, '#f85c6c', '你');
   const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'], fireboss: ['#ff7a4d','喷火首领'], tankboss: ['#c9a0ff','堡垒首领'] };
   state.bots.forEach(b => drawActor(b, ...(styles[b.type] || ['#58a7ff','AI'])));
-  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, 34, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, (lt.boss ? 30 : 19) + 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   state.effects.forEach(e => { ctx.globalAlpha = e.life; ctx.fillStyle = e.color; ctx.font = 'bold 15px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 35); ctx.globalAlpha = 1; });
   ctx.restore();
 }
@@ -175,9 +176,15 @@ const pauseBtn = document.createElement('div');
 pauseBtn.className = 'pause-btn'; pauseBtn.textContent = '⏸';
 pauseBtn.addEventListener('click', togglePause);
 document.querySelector('#arena-wrap').append(pauseBtn);
+const KEYS_HELP = IS_TOUCH ? [
+  ['左摇杆', '移动'], ['右摇杆', '自动开火'], ['⏸', '暂停'],
+] : [
+  ['WASD', '移动'], ['Shift', '冲刺'],
+  ['左键', '待机 / 攻击'], ['右键', '锁定目标'], ['ESC', '暂停'],
+];
 const pausePanel = document.createElement('div');
 pausePanel.id = 'pausePanel'; pausePanel.className = 'panel-overlay'; pausePanel.hidden = true;
-pausePanel.innerHTML = `<h2>已暂停</h2><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
+pausePanel.innerHTML = `<h2>已暂停</h2><p class="pause-hint">一直自动攻击 · 击败敌人拾取核心升级，三选一强化</p><div class="keys-box"></div><div class="attr-box" style="display:none"></div><div class="panel-btns"><button id="btnResume">继续</button><button id="btnRestart">重新开始</button></div>`;
 document.body.appendChild(pausePanel);
 const overPanel = document.createElement('div');
 overPanel.id = 'overPanel'; overPanel.className = 'panel-overlay'; overPanel.hidden = true;
@@ -189,6 +196,7 @@ function togglePause() {
   if (game.paused) showPause(); else hidePause();
 }
 function showPause() {
+  pausePanel.querySelector('.keys-box').innerHTML = KEYS_HELP.map(([k, v]) => `<div class="key-row"><b>${k}</b><span>${v}</span></div>`).join('');
   const box = pausePanel.querySelector('.attr-box');
   box.style.display = IS_TOUCH ? '' : 'none';
   if (IS_TOUCH) box.innerHTML = buildAttr(state.player);
@@ -231,6 +239,7 @@ function frame() {
       bossNameEl.textContent = BOSS_NAMES[boss.type] || '首领';
       bossFillEl.style.width = `${Math.max(0, boss.hp) / boss.maxHp * 100}%`;
       bossHpEl.textContent = `${Math.ceil(Math.max(0, boss.hp))}/${boss.maxHp}`;
+      bossRespawnEl.textContent = `增援 ${Math.ceil(Math.max(0, game.bossSpawnTimer))}s`;
       bossBar.hidden = false;
       timerEl.style.display = 'none';
     } else {
