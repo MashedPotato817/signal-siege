@@ -14,22 +14,40 @@ const UPGRADE_POOL = [
 
 const game = {
   phase: 'lobby', time: 0, wave: 0, score: 0, player: null, lives: 3, paused: false,
-  bots: [], cores: [], bullets: [], effects: [], options: [],
+  bots: [], cores: [], bullets: [], effects: [], options: [], items: [],
   last: Date.now(),
   input: { x: 0, y: 0, aimX: 1, aimY: 0, shoot: false, sprint: false },
 };
 
-function createActor(kind, x, y, type='scout') { return { kind, type, x, y, hp: kind === 'player' ? 100 : 55, maxHp: kind === 'player' ? 100 : 55, speed: kind === 'player' ? 215 : 145, damage: kind === 'player' ? 18 : 8, fireRate: kind === 'player' ? 1 : 1.5, bulletSpeed: 620, pickup: 36, resist: 0, aimX: 1, aimY: 0, cooldown: 0, touchCooldown: 0, respawn: 0, invuln: 0, stamina: 100, maxStamina: 100, xp: 0, level: 1, brain: {} }; }
+function createActor(kind, x, y, type='scout') { return { kind, type, x, y, hp: kind === 'player' ? 100 : 55, maxHp: kind === 'player' ? 100 : 55, speed: kind === 'player' ? 215 : 145, damage: kind === 'player' ? 18 : 8, fireRate: kind === 'player' ? 1 : 1.5, bulletSpeed: 620, pickup: 36, resist: 0, aimX: 1, aimY: 0, cooldown: 0, touchCooldown: 0, respawn: 0, invuln: 0, stamina: 100, maxStamina: 100, xp: 0, level: 1, buffs: { fury: 0, overclock: 0, snipe: 0 }, brain: {} }; }
 function startGame() {
   game.phase = 'playing'; game.wave = 0; game.score = 0; game.bullets = []; game.effects = []; game.options = [];
+  game.items = [];
   game.lives = 3; game.time = 0; game.paused = false; // 无尽生存：正计时，3 条命
   game.player = createActor('player', WORLD.width / 2, WORLD.height / 2);
   game.cores = Array.from({ length: 8 }, () => spawnCore());
   startWave();
 }
-function startWave() { game.wave++; const boss = game.wave % 3 === 0; const count = boss ? 1 + Math.floor(game.wave / 3) : 2 + Math.min(4, game.wave); const types = boss ? ['boss', ...Array.from({length: count - 1}, () => Math.random() < .6 ? 'scout' : 'shooter')] : Array.from({length: count}, () => { const r=Math.random(); return r < .5 ? 'scout' : r < .82 ? 'shooter' : 'brute'; }); game.bots = types.map((type, i) => makeEnemy(type, i)); effect(boss ? `第 ${game.wave} 波 · 首领来袭` : `第 ${game.wave} 波开始`, game.player.x, game.player.y - 70, boss ? '#ffca68' : '#bcecff'); }
-function makeEnemy(type, index) { const angle=(Math.PI*2/index + Math.random()) / Math.max(1, (type === 'boss' ? 1 : 3)); const x=clamp(game.player.x + Math.cos(angle)* (type === 'boss' ? 560 : 430 + Math.random()*260),60,WORLD.width-60), y=clamp(game.player.y + Math.sin(angle)*(type === 'boss'?400:300+Math.random()*220),60,WORLD.height-60); const bot=createActor('bot',x,y,type); if(type==='scout'){bot.hp=bot.maxHp=45;bot.speed=170;bot.damage=6;bot.fireRate=1.7;} if(type==='shooter'){bot.hp=bot.maxHp=62;bot.speed=118;bot.damage=10;bot.fireRate=1.35;bot.range=360;} if(type==='brute'){bot.hp=bot.maxHp=125;bot.speed=92;bot.damage=15;bot.fireRate=1.8;bot.range=230;} if(type==='boss'){bot.hp=bot.maxHp=360;bot.speed=88;bot.damage=17;bot.fireRate=1.1;bot.range=420;bot.boss=true;} return bot; }
+const BOSS_TYPES = ['boss', 'fireboss', 'tankboss'];
+function startWave() { game.wave++; const boss = game.wave % 3 === 0; const count = boss ? 1 + Math.floor(game.wave / 3) : 2 + Math.min(4, game.wave); const types = boss ? [BOSS_TYPES[Math.floor(game.wave / 3) % BOSS_TYPES.length], ...Array.from({length: count - 1}, () => Math.random() < .6 ? 'scout' : 'shooter')] : Array.from({length: count}, () => { const r=Math.random(); return r < .5 ? 'scout' : r < .82 ? 'shooter' : 'brute'; }); game.bots = types.map((type, i) => makeEnemy(type, i)); effect(boss ? `第 ${game.wave} 波 · 首领来袭` : `第 ${game.wave} 波开始`, game.player.x, game.player.y - 70, boss ? '#ffca68' : '#bcecff'); }
+function makeEnemy(type, index) { const angle=(Math.PI*2/index + Math.random()) / Math.max(1, (type === 'boss' || type === 'fireboss' || type === 'tankboss') ? 1 : 3); const x=clamp(game.player.x + Math.cos(angle)* (type === 'boss' || type === 'fireboss' || type === 'tankboss' ? 560 : 430 + Math.random()*260),60,WORLD.width-60), y=clamp(game.player.y + Math.sin(angle)*(type === 'boss' || type === 'fireboss' || type === 'tankboss'?400:300+Math.random()*220),60,WORLD.height-60); const bot=createActor('bot',x,y,type); if(type==='scout'){bot.hp=bot.maxHp=45;bot.speed=170;bot.damage=6;bot.fireRate=1.7;} if(type==='shooter'){bot.hp=bot.maxHp=62;bot.speed=118;bot.damage=10;bot.fireRate=1.35;bot.range=360;} if(type==='brute'){bot.hp=bot.maxHp=125;bot.speed=92;bot.damage=15;bot.fireRate=1.8;bot.range=230;} if(type==='boss'){bot.hp=bot.maxHp=360;bot.speed=88;bot.damage=17;bot.fireRate=1.1;bot.range=420;bot.boss=true;} if(type==='fireboss'){bot.hp=bot.maxHp=420;bot.speed=96;bot.damage=13;bot.fireRate=1.2;bot.range=400;bot.boss=true;bot.breath=1.4;} if(type==='tankboss'){bot.hp=bot.maxHp=820;bot.speed=46;bot.damage=30;bot.fireRate=3;bot.range=110;bot.boss=true;} if(!bot.boss){ const s=1+(game.wave-1)*.12; bot.hp=bot.maxHp=Math.round(bot.hp*s); bot.damage=Math.round(bot.damage*(1+(game.wave-1)*.1)); } return bot; }
 function spawnCore() { return { x: 180 + Math.random() * (WORLD.width - 360), y: 160 + Math.random() * (WORLD.height - 320), live: true, timer: 0 }; }
+const ITEM_TYPES = [
+  ['medkit', '血包', '回复 45 生命', '#7dffb0'],
+  ['fury', '怒火', '攻击力 +50%（8 秒，可突破上限）', '#ff9b6b'],
+  ['overclock', '超频', '攻速 +60%（8 秒，可突破上限）', '#ffd97d'],
+  ['snipe', '射程增幅', '子弹射程 +80%（8 秒，可突破上限）', '#8ecbff'],
+];
+function spawnItem(x, y) {
+  const t = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+  game.items.push({ type: t[0], title: t[1], text: t[2], color: t[3], x: x + Math.random() * 40 - 20, y: y + Math.random() * 40 - 20, life: 12, live: true });
+}
+function applyItem(p, it) {
+  if (it.type === 'medkit') { p.hp = Math.min(p.maxHp, p.hp + 45); effect('+45 生命', p.x, p.y, it.color); }
+  if (it.type === 'fury') { p.buffs.fury = 8; effect('攻击力 +50%', p.x, p.y, it.color); }
+  if (it.type === 'overclock') { p.buffs.overclock = 8; effect('攻速 +60%', p.x, p.y, it.color); }
+  if (it.type === 'snipe') { p.buffs.snipe = 8; effect('射程 +80%', p.x, p.y, it.color); }
+}
 function xpToNext(level) { return 3 + Math.floor((level - 1) * 1.5); }
 function addXp(n) {
   const p = game.player;
@@ -72,13 +90,13 @@ function stepActor(actor, input, dt) {
   actor.invuln = Math.max(0, (actor.invuln || 0) - dt);
   const moving = Math.hypot(input.x, input.y) > .05; const sprint = actor.kind === 'player' && input.sprint && moving && actor.stamina > 0; actor.stamina = clamp(actor.stamina + (sprint ? -34 : 22) * dt, 0, actor.maxStamina); const move = Math.hypot(input.x, input.y) || 1, speed = actor.speed * (sprint ? 1.62 : 1); actor.x = clamp(actor.x + input.x / move * speed * dt, 35, WORLD.width - 35); actor.y = clamp(actor.y + input.y / move * speed * dt, 35, WORLD.height - 35);
   const aim = Math.hypot(input.aimX, input.aimY) || 1; actor.aimX = input.aimX / aim; actor.aimY = input.aimY / aim; actor.cooldown -= dt; actor.touchCooldown -= dt;
-  if (input.shoot && actor.cooldown <= 0) { const shots=actor.type==='boss'?[-.2,0,.2]:[0]; shots.forEach(offset=>{const a=Math.atan2(actor.aimY,actor.aimX)+offset;game.bullets.push({ team: actor.kind, type:actor.type, x: actor.x + Math.cos(a) * 21, y: actor.y + Math.sin(a) * 21, dx: Math.cos(a) * actor.bulletSpeed, dy: Math.sin(a) * actor.bulletSpeed, damage: actor.damage, life: .82 }); }); actor.cooldown = .42 * actor.fireRate; }
+  if (input.shoot && actor.cooldown <= 0) { const bf = actor.buffs || {}; const dmg = Math.round(actor.damage * (bf.fury > 0 ? 1.5 : 1)); const life = .82 * (bf.snipe > 0 ? 1.8 : 1); const shots = (actor.type === 'boss' || actor.type === 'fireboss') ? [-.2, 0, .2] : [0]; shots.forEach(offset=>{const a=Math.atan2(actor.aimY,actor.aimX)+offset;game.bullets.push({ team: actor.kind, type:actor.type, x: actor.x + Math.cos(a) * 21, y: actor.y + Math.sin(a) * 21, dx: Math.cos(a) * actor.bulletSpeed, dy: Math.sin(a) * actor.bulletSpeed, damage: dmg, life }); }); actor.cooldown = .42 * actor.fireRate * (bf.overclock > 0 ? .625 : 1); }
 }
 function aiInput(bot, now, dt) {
   const b = bot.brain, p = game.player;
   if (!b.until || now > b.until) { const roll = Math.random(); b.mode = roll < .52 ? 'core' : roll < .88 ? 'wander' : 'duel'; b.until = now + 1500 + Math.random() * 2200; b.x = 180 + Math.random() * (WORLD.width - 360); b.y = 160 + Math.random() * (WORLD.height - 320); }
   const core = game.cores.filter(c => c.live).sort((a, z) => distance(bot, a) - distance(bot, z))[0]; const target = b.mode === 'core' && core ? core : b.mode === 'duel' ? p : { x: b.x, y: b.y };
-  let x = target.x - bot.x, y = target.y - bot.y; const playerDistance=distance(bot,p); if ((bot.type==='shooter'||bot.type==='boss')&&b.mode==='duel'){const desired=bot.type==='boss'?300:260;const direction=playerDistance<desired?-1:playerDistance>desired+70?1:0;x=(p.x-bot.x)*direction;y=(p.y-bot.y)*direction;} if (Math.hypot(x, y) < 55) { b.until = 0; x = y = 0; }
+  let x = target.x - bot.x, y = target.y - bot.y; const playerDistance=distance(bot,p); if ((bot.type==='shooter'||bot.type==='boss'||bot.type==='fireboss')&&b.mode==='duel'){const desired=(bot.type==='boss'||bot.type==='fireboss')?300:260;const direction=playerDistance<desired?-1:playerDistance>desired+70?1:0;x=(p.x-bot.x)*direction;y=(p.y-bot.y)*direction;} if (Math.hypot(x, y) < 55) { b.until = 0; x = y = 0; }
   b.vx = (b.vx || 0) * .84 + x * .16; b.vy = (b.vy || 0) * .84 + y * .16;
   const d = distance(bot, p); const range=bot.range || 240; if (d < range && Math.random() < (bot.boss ? .014 : .007) * dt * 30) b.shootUntil = now + 160 + Math.random() * 260;
   return { x: b.vx, y: b.vy, aimX: p.x - bot.x, aimY: p.y - bot.y, shoot: now < (b.shootUntil || 0) };
@@ -90,10 +108,13 @@ function tick() {
   if (game.phase === 'playing') {
     game.time += dt; // 正计时（无尽生存）
     stepActor(game.player, game.input, dt);
-    game.bots.forEach(bot => { stepActor(bot, aiInput(bot, now, dt), dt); if (bot.touchCooldown<=0 && bot.type!=='shooter' && game.player.respawn<=0 && game.player.invuln<=0 && distance(bot,game.player)<(bot.type==='boss'?52:40)) { const hit=bot.type==='boss'?18:bot.type==='brute'?13:7;game.player.hp-=hit;bot.touchCooldown=1;effect(`-${hit}`,game.player.x,game.player.y-25,'#ff8d8d'); } }); if(game.player.hp<=0 && game.player.respawn<=0){ if(game.lives>1){ game.lives--; game.player.hp=0; game.player.respawn=1.8; effect('失去一条命',game.player.x,game.player.y-25,'#ffd0a0'); } else { game.lives=0; game.player.hp=0; game.phase='finished'; effect('力竭',game.player.x,game.player.y,'#ffffff'); } }
+    game.bots.forEach(bot => { stepActor(bot, aiInput(bot, now, dt), dt); if (bot.type === 'fireboss') { bot.breath = (bot.breath || 1.4) - dt; if (bot.breath <= 0) { if (game.player.respawn <= 0) { const a = Math.atan2(game.player.y - bot.y, game.player.x - bot.x); for (let i = -2; i <= 2; i++) { const ang = a + i * .22; game.bullets.push({ team: 'bot', fire: true, x: bot.x + Math.cos(ang) * 30, y: bot.y + Math.sin(ang) * 30, dx: Math.cos(ang) * 280, dy: Math.sin(ang) * 280, damage: 10, life: .6 }); } effect('火焰喷射', bot.x, bot.y - 25, '#ff7a4d'); bot.breath = 2.6; } } } if (bot.touchCooldown<=0 && bot.type!=='shooter' && game.player.respawn<=0 && game.player.invuln<=0 && distance(bot,game.player)<(bot.boss?54:40)) { const hit=bot.type==='tankboss'?26:(bot.boss?18:bot.type==='brute'?13:7);game.player.hp-=hit;bot.touchCooldown=1;effect(`-${hit}`,game.player.x,game.player.y-25,'#ff8d8d'); } }); if(game.player.hp<=0 && game.player.respawn<=0){ if(game.lives>1){ game.lives--; game.player.hp=0; game.player.respawn=1.8; effect('失去一条命',game.player.x,game.player.y-25,'#ffd0a0'); } else { game.lives=0; game.player.hp=0; game.phase='finished'; effect('力竭',game.player.x,game.player.y,'#ffffff'); } }
+    for (const k in game.player.buffs) game.player.buffs[k] = Math.max(0, game.player.buffs[k] - dt); // 临时增益倒计时
     for (const core of game.cores) if (!core.live) { core.timer -= dt; if (core.timer <= 0) Object.assign(core, spawnCore()); }
     for (const actor of [game.player, ...game.bots]) for (const core of game.cores) if (core.live && actor.respawn <= 0 && distance(actor, core) < actor.pickup) { core.live = false; core.timer = 4; if (actor.kind === 'player') { game.score++; addXp(1); effect('+1 核心', actor.x, actor.y, '#ffe073'); } }
-    game.bullets = game.bullets.filter(b => { b.x += b.dx * dt; b.y += b.dy * dt; b.life -= dt; const targets = b.team === 'player' ? game.bots : [game.player]; const target = targets.find(t => t.respawn <= 0 && (t.invuln || 0) <= 0 && distance(b, t) < 24); if (target) { target.hp -= b.damage * (1 - target.resist); effect(`-${Math.round(b.damage)}`, target.x, target.y - 25, '#ff8d8d'); b.life = 0; if (target.hp <= 0) { if (target.kind === 'bot') { target.dead = true; game.score += target.boss ? 8 : target.type === 'brute' ? 3 : 2; addXp(target.boss ? 2 : 1); effect(target.boss ? '首领击败！' : '击败', target.x, target.y, '#ffffff'); } } } return b.life > 0 && b.x > 0 && b.x < WORLD.width && b.y > 0 && b.y < WORLD.height; });
+    if (game.player.respawn <= 0) for (const it of game.items) if (it.live && distance(game.player, it) < game.player.pickup) { it.live = false; applyItem(game.player, it); }
+    game.items = game.items.filter(it => { it.life -= dt; return it.live && it.life > 0; });
+    game.bullets = game.bullets.filter(b => { b.x += b.dx * dt; b.y += b.dy * dt; b.life -= dt; const targets = b.team === 'player' ? game.bots : [game.player]; const target = targets.find(t => t.respawn <= 0 && (t.invuln || 0) <= 0 && distance(b, t) < (b.fire ? 26 : 24)); if (target) { target.hp -= b.damage * (1 - target.resist); effect(`-${Math.round(b.damage)}`, target.x, target.y - 25, '#ff8d8d'); b.life = 0; if (target.hp <= 0) { if (target.kind === 'bot') { target.dead = true; game.score += target.boss ? 8 : target.type === 'brute' ? 3 : 2; addXp(target.boss ? 2 : 1); effect(target.boss ? '首领击败！' : '击败', target.x, target.y, '#ffffff'); if (target.boss || Math.random() < .15) spawnItem(target.x, target.y); } } } return b.life > 0 && b.x > 0 && b.x < WORLD.width && b.y > 0 && b.y < WORLD.height; });
     game.bots = game.bots.filter(bot => !bot.dead);
     if (game.phase === 'upgrade') { /* 升级暂停，本 tick 不再推进波次 */ }
     else if (game.phase === 'playing' && game.bots.length === 0) { game.score += 3; startWave(); }

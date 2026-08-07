@@ -30,6 +30,8 @@ const xpBar = document.createElement('div');
 xpBar.className = 'xp'; xpBar.innerHTML = '<i></i>';
 document.querySelector('#arena-wrap').append(xpBar);
 const xpFill = xpBar.firstChild;
+const buffBar = document.createElement('div');
+buffBar.className = 'buffs'; document.querySelector('#arena-wrap').append(buffBar);
 const attrPanel = document.createElement('div');
 attrPanel.className = 'attr'; attrPanel.style.display = 'none';
 document.querySelector('#arena-wrap').append(attrPanel);
@@ -95,7 +97,7 @@ function updateCamera(player) {
 function drawActor(a, color, label) {
   const alpha = a.respawn > 0 ? .22 : (a.invuln > 0 ? .4 + .25 * Math.sin(Date.now() / 90) : 1);
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(a.x, a.y, label === '首领' ? 28 : 19, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(a.x, a.y, a.boss ? 30 : 19, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#06101c'; ctx.fillRect(a.x - 32, a.y - 48, 64, 17); ctx.fillStyle = '#253b4d'; ctx.fillRect(a.x - 28, a.y - 43, 56, 7); ctx.fillStyle = color; ctx.fillRect(a.x - 28, a.y - 43, 56 * Math.max(0, a.hp) / a.maxHp, 7);
   ctx.fillStyle = '#fff'; ctx.font = '10px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(`${label} ${Math.ceil(a.hp)}/${a.maxHp}`, a.x, a.y - 53);
   ctx.globalAlpha = 1;
@@ -107,9 +109,10 @@ function drawWorld() {
   for (let x = 0; x <= WORLD.width; x += 80) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD.height); ctx.stroke(); }
   for (let y = 0; y <= WORLD.height; y += 80) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD.width, y); ctx.stroke(); }
   state.cores.forEach(c => { if (!c.live) return; ctx.fillStyle = '#ffe073'; ctx.shadowBlur = 20; ctx.shadowColor = '#ffe073'; ctx.beginPath(); ctx.arc(c.x, c.y, 12, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; });
-  state.bullets.forEach(b => { ctx.fillStyle = b.team === 'player' ? '#ff6677' : '#72b8ff'; ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill(); });
+  state.items.forEach(it => { if (!it.live) return; ctx.save(); const pulse = 1 + Math.sin(Date.now() / 220 + it.x) * .15; ctx.fillStyle = it.color; ctx.shadowBlur = 16; ctx.shadowColor = it.color; ctx.globalAlpha = Math.min(1, it.life / 3); ctx.beginPath(); ctx.arc(it.x, it.y, 11 * pulse, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#06101c'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(it.type === 'medkit' ? '+' : it.type === 'fury' ? '攻' : it.type === 'overclock' ? '速' : '程', it.x, it.y + 3); ctx.restore(); });
+  state.bullets.forEach(b => { ctx.fillStyle = b.team === 'player' ? '#ff6677' : (b.fire ? '#ff7a4d' : '#72b8ff'); ctx.shadowBlur = b.fire ? 10 : 0; ctx.shadowColor = b.fire ? '#ff7a4d' : ''; ctx.beginPath(); ctx.arc(b.x, b.y, b.fire ? 7 : 5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; });
   drawActor(p, '#f85c6c', '你');
-  const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'] };
+  const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'], fireboss: ['#ff7a4d','喷火首领'], tankboss: ['#c9a0ff','堡垒首领'] };
   state.bots.forEach(b => drawActor(b, ...(styles[b.type] || ['#58a7ff','AI'])));
   state.effects.forEach(e => { ctx.globalAlpha = e.life; ctx.fillStyle = e.color; ctx.font = 'bold 15px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 35); ctx.globalAlpha = 1; });
   ctx.restore();
@@ -121,7 +124,7 @@ function drawHud() {
   if (p.pickup > 36) drawMagnet(p); drawOffscreenEnemies(); drawJoysticks();
 }
 function drawMagnet(p) { const x = p.x - camera.x, y = p.y - camera.y, r = p.pickup * (1 + Math.sin(Date.now() / 260) * .05); ctx.save(); ctx.strokeStyle = 'rgba(105,231,255,.72)'; ctx.setLineDash([5,7]); ctx.lineDashOffset = -Date.now()/42; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke(); ctx.restore(); }
-function drawOffscreenEnemies() { const pad=42,cx=canvas.width/2,cy=canvas.height/2; state.bots.forEach(bot => { const x=bot.x-camera.x,y=bot.y-camera.y; if(x>pad&&x<canvas.width-pad&&y>pad&&y<canvas.height-pad)return; const dx=x-cx,dy=y-cy,angle=Math.atan2(dy,dx),scale=Math.min((canvas.width/2-pad)/Math.max(1,Math.abs(dx)),(canvas.height/2-pad)/Math.max(1,Math.abs(dy))),ax=cx+dx*scale,ay=cy+dy*scale; ctx.save();ctx.translate(ax,ay);ctx.rotate(angle);ctx.fillStyle=bot.type==='boss'?'#ffd464':'#72b8ff';ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-9,-8);ctx.lineTo(-5,0);ctx.lineTo(-9,8);ctx.closePath();ctx.fill();ctx.restore(); }); }
+function drawOffscreenEnemies() { const pad=42,cx=canvas.width/2,cy=canvas.height/2; state.bots.forEach(bot => { const x=bot.x-camera.x,y=bot.y-camera.y; if(x>pad&&x<canvas.width-pad&&y>pad&&y<canvas.height-pad)return; const dx=x-cx,dy=y-cy,angle=Math.atan2(dy,dx),scale=Math.min((canvas.width/2-pad)/Math.max(1,Math.abs(dx)),(canvas.height/2-pad)/Math.max(1,Math.abs(dy))),ax=cx+dx*scale,ay=cy+dy*scale; ctx.save();ctx.translate(ax,ay);ctx.rotate(angle);ctx.fillStyle=bot.boss?'#ffd464':'#72b8ff';ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(-9,-8);ctx.lineTo(-5,0);ctx.lineTo(-9,8);ctx.closePath();ctx.fill();ctx.restore(); }); }
 function showUpgrade() {
   if (document.querySelector('#upgrade')) return;
   const panel=document.createElement('div');panel.id='upgrade';
@@ -192,6 +195,7 @@ function frame() {
     const p = state.player;
     const dx=mouse.x-(p.x-camera.x),dy=mouse.y-(p.y-camera.y),d=Math.hypot(dx,dy)||1; if(!IS_TOUCH){ input.aimX=dx/d; input.aimY=dy/d; }
     staminaFill.style.width=`${p.stamina/p.maxStamina*100}%`;
+    const bf = p.buffs || {}; const active = []; if (bf.fury > 0) active.push(`<span>怒火 ${bf.fury.toFixed(1)}s</span>`); if (bf.overclock > 0) active.push(`<span>超频 ${bf.overclock.toFixed(1)}s</span>`); if (bf.snipe > 0) active.push(`<span>射程 ${bf.snipe.toFixed(1)}s</span>`); buffBar.innerHTML = active.join(''); buffBar.style.display = active.length ? '' : 'none';
     updateAttr(p); drawWorld(); drawHud();
     scoreEl.textContent=`能量 ${state.score}`;
     timerEl.textContent=`${String(Math.max(0,Math.ceil(state.time))/60|0).padStart(2,'0')}:${String(Math.max(0,Math.ceil(state.time))%60).padStart(2,'0')}`;
