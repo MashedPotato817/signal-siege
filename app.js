@@ -130,7 +130,7 @@ function drawWorld() {
   drawActor(p, '#f85c6c', '你');
   const styles = { scout: ['#65b8ff','侦察'], shooter: ['#b18cff','射手'], brute: ['#ff9565','重装'], boss: ['#ffd464','首领'], fireboss: ['#ff7a4d','喷火首领'], tankboss: ['#c9a0ff','堡垒首领'] };
   state.bots.forEach(b => drawActor(b, ...(styles[b.type] || ['#58a7ff','AI'])));
-  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, 34, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+  if (lockTarget && state.bots.includes(lockTarget)) { const lt = lockTarget; ctx.strokeStyle = '#ffe073'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.lineDashOffset = -(Date.now() / 30) % 10; ctx.beginPath(); ctx.arc(lt.x, lt.y, (lt.boss ? 30 : 19) + 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
   state.effects.forEach(e => { ctx.globalAlpha = e.life; ctx.fillStyle = e.color; ctx.font = 'bold 15px Microsoft YaHei'; ctx.textAlign = 'center'; ctx.fillText(e.text, e.x, e.y - (1 - e.life) * 35); ctx.globalAlpha = 1; });
   ctx.restore();
 }

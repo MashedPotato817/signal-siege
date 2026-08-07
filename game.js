@@ -34,7 +34,7 @@ function startWave() {
   const boss = game.wave % 3 === 0;
   if (boss) {
     // 首领 + 周围区域跟随的小怪（Boss 战）
-    const bossBot = makeEnemy(BOSS_TYPES[Math.floor(game.wave / 3) % BOSS_TYPES.length], 0);
+    const bossBot = makeEnemy(BOSS_TYPES[Math.floor(Math.random() * BOSS_TYPES.length)], 0);
     const escort = Math.max(2, Math.floor(game.wave / 3)); // 波 3:2、6:2、9:3…
     game.bots = [bossBot];
     for (let i = 0; i < escort; i++) game.bots.push(makeEnemy(Math.random() < .6 ? 'scout' : 'shooter', i + 1, bossBot));
@@ -44,7 +44,7 @@ function startWave() {
   }
   effect(boss ? `第 ${game.wave} 波 · 首领来袭` : `第 ${game.wave} 波开始`, game.player.x, game.player.y - 70, boss ? '#ffca68' : '#bcecff');
 }
-function makeEnemy(type, index, near) { const big = type === 'boss' || type === 'fireboss' || type === 'tankboss'; const angle=(Math.PI*2*index + Math.random()) / Math.max(1, big ? 1 : 3); const ox = near ? near.x : game.player.x, oy = near ? near.y : game.player.y; const rx = near ? 130 + Math.random() * 150 : big ? 560 : 430 + Math.random() * 260; const ry = near ? 110 + Math.random() * 140 : big ? 400 : 300 + Math.random() * 220; const x=clamp(ox + Math.cos(angle)*rx,60,WORLD.width-60), y=clamp(oy + Math.sin(angle)*ry,60,WORLD.height-60); const bot=createActor('bot',x,y,type); if(type==='scout'){bot.hp=bot.maxHp=45;bot.speed=170;bot.damage=6;bot.fireRate=1.7;} if(type==='shooter'){bot.hp=bot.maxHp=62;bot.speed=118;bot.damage=10;bot.fireRate=1.35;bot.range=360;} if(type==='brute'){bot.hp=bot.maxHp=125;bot.speed=92;bot.damage=15;bot.fireRate=1.8;bot.range=230;} if(type==='boss'){bot.hp=bot.maxHp=500;bot.speed=88;bot.damage=17;bot.fireRate=1.1;bot.range=420;bot.boss=true;} if(type==='fireboss'){bot.hp=bot.maxHp=580;bot.speed=96;bot.damage=13;bot.fireRate=1.2;bot.range=400;bot.boss=true;bot.breath=1.4;} if(type==='tankboss'){bot.hp=bot.maxHp=1100;bot.speed=46;bot.damage=30;bot.fireRate=3;bot.range=110;bot.boss=true;} if(!bot.boss){ const s=1+(game.wave-1)*.12; bot.hp=bot.maxHp=Math.round(bot.hp*s); bot.damage=Math.round(bot.damage*(1+(game.wave-1)*.1)); } if(bot.boss){ const n=Math.floor(game.wave/3); if(n>1) bot.hp=bot.maxHp=Math.round(bot.hp*(1+(n-1)*.3)); } return bot; }
+function makeEnemy(type, index, near) { const big = type === 'boss' || type === 'fireboss' || type === 'tankboss'; const angle=(Math.PI*2*index + Math.random()) / Math.max(1, big ? 1 : 3); const ox = near ? near.x : game.player.x, oy = near ? near.y : game.player.y; const rx = near ? 130 + Math.random() * 150 : big ? 560 : 430 + Math.random() * 260; const ry = near ? 110 + Math.random() * 140 : big ? 400 : 300 + Math.random() * 220; const x=clamp(ox + Math.cos(angle)*rx,60,WORLD.width-60), y=clamp(oy + Math.sin(angle)*ry,60,WORLD.height-60); const bot=createActor('bot',x,y,type); if(type==='scout'){bot.hp=bot.maxHp=45;bot.speed=170;bot.damage=6;bot.fireRate=1.7;} if(type==='shooter'){bot.hp=bot.maxHp=62;bot.speed=118;bot.damage=10;bot.fireRate=1.35;bot.range=360;} if(type==='brute'){bot.hp=bot.maxHp=125;bot.speed=92;bot.damage=15;bot.fireRate=1.8;bot.range=230;} if(type==='boss'){bot.hp=bot.maxHp=500;bot.speed=88;bot.damage=17;bot.fireRate=1.1;bot.range=420;bot.boss=true;} if(type==='fireboss'){bot.hp=bot.maxHp=580;bot.speed=96;bot.damage=13;bot.fireRate=1.2;bot.range=400;bot.boss=true;bot.breath=1.4;} if(type==='tankboss'){bot.hp=bot.maxHp=1100;bot.speed=46;bot.damage=30;bot.fireRate=3;bot.range=110;bot.boss=true;} if(!bot.boss){ const s=1+(game.wave-1)*.12; bot.hp=bot.maxHp=Math.round(bot.hp*s); bot.damage=Math.round(bot.damage*(1+(game.wave-1)*.1)); } if(bot.boss){ const n=Math.floor(game.wave/3); if(n>1){ bot.hp=bot.maxHp=Math.round(bot.hp*(1+(n-1)*.3)); bot.damage=Math.round(bot.damage*(1+(n-1)*.12)); } } return bot; }
 function spawnCore() { return { x: 180 + Math.random() * (WORLD.width - 360), y: 160 + Math.random() * (WORLD.height - 320), live: true, timer: 0 }; }
 const ITEM_TYPES = [
   ['medkit', '血包', '回复 45 生命', '#7dffb0'],
@@ -108,9 +108,18 @@ function stepActor(actor, input, dt) {
 }
 function aiInput(bot, now, dt) {
   const b = bot.brain, p = game.player;
+  const boss = bot.boss ? null : game.bots.find(x => x.boss); // Boss 存活时小怪协同
   if (!b.until || now > b.until) { const roll = Math.random(); b.mode = roll < .52 ? 'core' : roll < .88 ? 'wander' : 'duel'; b.until = now + 1500 + Math.random() * 2200; b.x = 180 + Math.random() * (WORLD.width - 360); b.y = 160 + Math.random() * (WORLD.height - 320); }
   const core = game.cores.filter(c => c.live).sort((a, z) => distance(bot, a) - distance(bot, z))[0]; const target = b.mode === 'core' && core ? core : b.mode === 'duel' ? p : { x: b.x, y: b.y };
   let x = target.x - bot.x, y = target.y - bot.y; const playerDistance=distance(bot,p); if ((bot.type==='shooter'||bot.type==='boss'||bot.type==='fireboss')&&b.mode==='duel'){const desired=(bot.type==='boss'||bot.type==='fireboss')?300:260;const direction=playerDistance<desired?-1:playerDistance>desired+70?1:0;x=(p.x-bot.x)*direction;y=(p.y-bot.y)*direction;} if (Math.hypot(x, y) < 55) { b.until = 0; x = y = 0; }
+  if (boss) { // 协同：小怪围绕 Boss 一定距离内移动
+    if (!b.orbit || now > b.orbit) { const a = Math.random() * Math.PI * 2; b.oAng = a; b.oR = 150 + Math.random() * 130; b.orbit = now + 1800 + Math.random() * 1600; }
+    const bx = boss.x + Math.cos(b.oAng) * b.oR, by = boss.y + Math.sin(b.oAng) * b.oR;
+    if (distance(bot, { x: bx, y: by }) > 30) { x = bx - bot.x; y = by - bot.y; }
+    b.vx = (b.vx || 0) * .84 + x * .16; b.vy = (b.vy || 0) * .84 + y * .16;
+    const d2 = distance(bot, p); if (d2 < 300) b.shootUntil = now + 160 + Math.random() * 260;
+    return { x: b.vx, y: b.vy, aimX: p.x - bot.x, aimY: p.y - bot.y, shoot: now < (b.shootUntil || 0) };
+  }
   b.vx = (b.vx || 0) * .84 + x * .16; b.vy = (b.vy || 0) * .84 + y * .16;
   const d = distance(bot, p); const range=bot.range || 240; if (d < range && Math.random() < (bot.boss ? .014 : .007) * dt * 30) b.shootUntil = now + 160 + Math.random() * 260;
   return { x: b.vx, y: b.vy, aimX: p.x - bot.x, aimY: p.y - bot.y, shoot: now < (b.shootUntil || 0) };
